@@ -1,0 +1,21 @@
+# Core & Data
+numpy
+pandas
+psutil
+tqdm
+
+# Web Framework & Plotting
+streamlit
+plotly
+
+# AI & Machine Learning
+faiss-cpu
+ollama
+groq
+langchain
+langgraph
+Pillow
+googletrans==4.0.0-rc1
+
+# Security
+bcrypt
