@@ -30,7 +30,12 @@ except Exception:
 # Third-party imports
 import numpy as np
 import pandas as pd
-import bcrypt
+try:
+    import bcrypt
+    BCRYPT_AVAILABLE = True
+except Exception:
+    bcrypt = None
+    BCRYPT_AVAILABLE = False
 import faiss
 import ollama
 import streamlit as st
@@ -153,12 +158,34 @@ groq_client = Groq(api_key=config.groq_api_key)
 # ===== SECURITY =====
 def hash_password(password: str) -> str:
     """Hash a password using bcrypt"""
-    salt = bcrypt.gensalt()
-    return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+    if BCRYPT_AVAILABLE and bcrypt is not None:
+        salt = bcrypt.gensalt()
+        return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+    # Fallback: use PBKDF2-HMAC-SHA256
+    salt = secrets.token_bytes(16)
+    dk = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 100_000)
+    # store as hex: iterations$salt_hex$dk_hex
+    return f"100000${salt.hex()}${dk.hex()}"
 
 def verify_password(password: str, hashed_password: str) -> bool:
     """Verify a password against its hash"""
-    return bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
+    if BCRYPT_AVAILABLE and bcrypt is not None:
+        try:
+            return bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
+        except Exception:
+            return False
+    # Fallback: expected format iterations$salt_hex$dk_hex
+    try:
+        parts = hashed_password.split('$')
+        if len(parts) != 3:
+            return False
+        iterations = int(parts[0])
+        salt = bytes.fromhex(parts[1])
+        dk_hex = parts[2]
+        new_dk = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, iterations)
+        return secrets.compare_digest(new_dk.hex(), dk_hex)
+    except Exception:
+        return False
 
 def generate_session_token() -> str:
     """Generate a secure session token"""
