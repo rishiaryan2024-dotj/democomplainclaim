@@ -2078,22 +2078,64 @@ class EnhancedRAGSystem:
 
     def _create_workflow(self):
         """Create the LangGraph workflow for answering queries"""
-        # Create a graph
-        workflow = StateGraph(RAGState)
+        # Use LangGraph StateGraph when available; otherwise provide a minimal fallback
+        if LANGGRAPH_AVAILABLE and StateGraph is not None:
+            workflow = StateGraph(RAGState)
 
-        # Add nodes
-        workflow.add_node("retrieve_relevant_chunks", self._retrieve_relevant_chunks_node)
-        workflow.add_node("generate_response", self._generate_response_node)
+            # Add nodes
+            workflow.add_node("retrieve_relevant_chunks", self._retrieve_relevant_chunks_node)
+            workflow.add_node("generate_response", self._generate_response_node)
 
-        # Set the entry point
-        workflow.set_entry_point("retrieve_relevant_chunks")
+            # Set the entry point
+            workflow.set_entry_point("retrieve_relevant_chunks")
 
-        # Add edges
-        workflow.add_edge("retrieve_relevant_chunks", "generate_response")
-        workflow.add_edge("generate_response", END)
+            # Add edges
+            workflow.add_edge("retrieve_relevant_chunks", "generate_response")
+            workflow.add_edge("generate_response", END)
 
-        # Compile the workflow
-        return workflow.compile()
+            # Compile the workflow
+            return workflow.compile()
+
+        # Minimal fallback workflow when langgraph isn't available
+        class MinimalWorkflow:
+            def __init__(self):
+                self.nodes = []
+                self.entry = None
+
+            def add_node(self, name, func):
+                self.nodes.append((name, func))
+
+            def set_entry_point(self, name):
+                self.entry = name
+
+            def add_edge(self, a, b):
+                # edges are implicit in node order for this minimal workflow
+                pass
+
+            def compile(self):
+                nodes = list(self.nodes)
+
+                class Runner:
+                    def __init__(self, nodes):
+                        self.nodes = nodes
+
+                    def invoke(self, state):
+                        for name, func in self.nodes:
+                            try:
+                                state = func(state)
+                            except Exception as e:
+                                logger.error(f"Workflow node '{name}' failed: {e}")
+                                state['error'] = str(e)
+                                return state
+                        return state
+
+                return Runner(nodes)
+
+        wf = MinimalWorkflow()
+        wf.add_node("retrieve_relevant_chunks", self._retrieve_relevant_chunks_node)
+        wf.add_node("generate_response", self._generate_response_node)
+        wf.set_entry_point("retrieve_relevant_chunks")
+        return wf.compile()
 
     def _retrieve_relevant_chunks_node(self, state: RAGState) -> RAGState:
         """Retrieve relevant chunks node"""
