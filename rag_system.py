@@ -27,29 +27,106 @@ try:
 except Exception:
     psutil = None
     PSUTIL_AVAILABLE = False
-# Third-party imports
-import numpy as np
-import pandas as pd
+# Third-party imports (made optional to avoid ModuleNotFoundError on deployment)
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except Exception:
+    np = None
+    NUMPY_AVAILABLE = False
+
+try:
+    import pandas as pd
+    PANDAS_AVAILABLE = True
+except Exception:
+    pd = None
+    PANDAS_AVAILABLE = False
+
+# bcrypt: optional (fallback hashing implemented later)
 try:
     import bcrypt
     BCRYPT_AVAILABLE = True
 except Exception:
     bcrypt = None
     BCRYPT_AVAILABLE = False
-import faiss
-import ollama
+
+# bcrypt is imported earlier and handled with BCRYPT_AVAILABLE flag
+try:
+    import faiss
+    FAISS_AVAILABLE = True
+except Exception:
+    faiss = None
+    FAISS_AVAILABLE = False
+
+try:
+    import ollama
+    OLLAMA_AVAILABLE = True
+except Exception:
+    ollama = None
+    OLLAMA_AVAILABLE = False
+
 import streamlit as st
-import plotly.graph_objects as go
-import plotly.express as px
-from plotly.subplots import make_subplots
-from PIL import Image
-from groq import Groq
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langgraph.graph import StateGraph, END
-from typing import TypedDict
-from tqdm import tqdm
+
+try:
+    import plotly.graph_objects as go
+    import plotly.express as px
+    from plotly.subplots import make_subplots
+    PLOTLY_AVAILABLE = True
+except Exception:
+    go = None
+    px = None
+    make_subplots = None
+    PLOTLY_AVAILABLE = False
+
+try:
+    from PIL import Image
+    PIL_AVAILABLE = True
+except Exception:
+    Image = None
+    PIL_AVAILABLE = False
+
+try:
+    from groq import Groq
+    GROQ_AVAILABLE = True
+except Exception:
+    Groq = None
+    GROQ_AVAILABLE = False
+
+try:
+    from langchain.text_splitter import RecursiveCharacterTextSplitter
+    LANGCHAIN_AVAILABLE = True
+except Exception:
+    RecursiveCharacterTextSplitter = None
+    LANGCHAIN_AVAILABLE = False
+
+try:
+    from langgraph.graph import StateGraph, END
+    LANGGRAPH_AVAILABLE = True
+except Exception:
+    StateGraph = None
+    END = None
+    LANGGRAPH_AVAILABLE = False
+
+try:
+    from typing import TypedDict
+except Exception:
+    TypedDict = dict
+
+try:
+    from tqdm import tqdm
+    TQDM_AVAILABLE = True
+except Exception:
+    tqdm = None
+    TQDM_AVAILABLE = False
+
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from googletrans import Translator
+
+try:
+    from googletrans import Translator
+    GOOGLETRANS_AVAILABLE = True
+except Exception:
+    Translator = None
+    GOOGLETRANS_AVAILABLE = False
 # Optional imports (with fallbacks)
 try:
     from unstructured.partition.pdf import partition_pdf
@@ -152,8 +229,16 @@ CACHE_DIR = Path("./cache")
 for dir_path in [PROCESSED_DIR, CATEGORIES_DIR, VECTOR_STORE_DIR, LOGS_DIR, UPLOADS_DIR, USER_DATA_DIR, CACHE_DIR]:
     os.makedirs(dir_path, exist_ok=True)
 
-# Initialize Groq client
-groq_client = Groq(api_key=config.groq_api_key)
+# Initialize Groq client if available
+if GROQ_AVAILABLE and Groq is not None and config.groq_api_key:
+    try:
+        groq_client = Groq(api_key=config.groq_api_key)
+    except Exception as e:
+        logger.warning(f"Failed to initialize Groq client: {e}")
+        groq_client = None
+        GROQ_AVAILABLE = False
+else:
+    groq_client = None
 
 # ===== SECURITY =====
 def hash_password(password: str) -> str:
@@ -1348,11 +1433,38 @@ class AdvancedTextChunker:
     def __init__(self, chunk_size: int = None, overlap: int = None):
         self.chunk_size = chunk_size or config.chunk_size
         self.overlap = overlap or config.chunk_overlap
-        self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=self.chunk_size,
-            chunk_overlap=self.overlap,
-            separators=["\n\n", "\n", ". ", " ", ""]
-        )
+        # Use LangChain splitter when available, otherwise use a simple fallback
+        if LANGCHAIN_AVAILABLE and RecursiveCharacterTextSplitter is not None:
+            self.text_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=self.chunk_size,
+                chunk_overlap=self.overlap,
+                separators=["\n\n", "\n", ". ", " ", ""]
+            )
+        else:
+            # Fallback splitter: naive paragraph/sentence based splitter
+            class SimpleSplitter:
+                def __init__(self, chunk_size, overlap):
+                    self.chunk_size = chunk_size
+                    self.overlap = overlap
+
+                def split_text(self, text):
+                    # Split into paragraphs first
+                    paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+                    chunks = []
+                    for p in paragraphs:
+                        if len(p) <= self.chunk_size:
+                            chunks.append(p)
+                        else:
+                            # split into sliding windows of words
+                            words = p.split()
+                            i = 0
+                            while i < len(words):
+                                chunk = ' '.join(words[i:i+self.chunk_size//5])
+                                chunks.append(chunk)
+                                i += max(1, (self.chunk_size//5) - (self.overlap//5))
+                    return chunks
+
+            self.text_splitter = SimpleSplitter(self.chunk_size, self.overlap)
         self.chunking_stats = {
             'total_documents': 0,
             'total_chunks': 0,
@@ -1552,7 +1664,20 @@ class MultiModalEmbeddingGenerator:
         """Generate embedding for text using Ollama"""
         if not text.strip():
             logger.warning("Empty text provided for embedding")
-            return np.zeros(768, dtype=np.float32)  # Default size for nomic-embed-text
+            if NUMPY_AVAILABLE:
+                return np.zeros(768, dtype=np.float32)
+            else:
+                return []
+
+        # If Ollama is not available, return a zero vector (graceful degradation)
+        if not OLLAMA_AVAILABLE or ollama is None:
+            logger.warning("Ollama not available; returning zero-vector embedding")
+            if NUMPY_AVAILABLE:
+                self.embedding_stats['errors'] += 1
+                return np.zeros(768, dtype=np.float32)
+            else:
+                self.embedding_stats['errors'] += 1
+                return []
 
         try:
             response = ollama.embeddings(model=self.text_model, prompt=text)
@@ -1563,7 +1688,9 @@ class MultiModalEmbeddingGenerator:
         except Exception as e:
             logger.error(f"Error generating text embedding: {str(e)}")
             self.embedding_stats['errors'] += 1
-            return np.zeros(768, dtype=np.float32)
+            if NUMPY_AVAILABLE:
+                return np.zeros(768, dtype=np.float32)
+            return []
 
     def generate_table_summary(self, table: str) -> str:
         """Generate a summary for a table"""
@@ -2063,8 +2190,12 @@ class EnhancedRAGSystem:
         9. DO REMEMBER THE CONTEXT OF THE CONVERSATION.
         """
 
+        # If Ollama is not available, return a helpful message instead of raising
+        if not OLLAMA_AVAILABLE or ollama is None:
+            logger.warning("OLLAMA not available; returning placeholder response")
+            return "LLM backend is not available in this environment. Please configure Ollama or another LLM provider."
+
         try:
-            # Use qwen2.5:1.5b for response generation
             response = ollama.chat(
                 model=config.llm_model,
                 messages=[{"role": "user", "content": prompt}]
