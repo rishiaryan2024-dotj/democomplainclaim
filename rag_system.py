@@ -2614,8 +2614,31 @@ def translate_text(text: str, target_lang: str, translator) -> str:
         if len(text) > 5000:
             text = text[:5000] + "..."
 
-        result = translator.translate(text, dest='ja' if target_lang == "Japanese" else 'en')
-        return result.text
+        if not translator:
+            logger.debug("No translator available; returning original text")
+            return text
+
+        res = translator.translate(text, dest='ja' if target_lang == "Japanese" else 'en')
+
+        # Handle coroutine/awaitable translators (some implementations may be async)
+        if asyncio.iscoroutine(res):
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop and loop.is_running():
+                # Running inside an event loop (Streamlit); run synchronously
+                res = asyncio.get_event_loop().run_until_complete(res)
+            else:
+                res = asyncio.run(res)
+
+        # Some translators return object with .text, others return string
+        if hasattr(res, 'text'):
+            return res.text
+        if isinstance(res, str):
+            return res
+        return text
     except Exception as e:
         logger.error(f"Translation error: {str(e)}")
         return text  # Return original text if translation fails
@@ -2972,7 +2995,14 @@ def main():
     if 'success_message' not in st.session_state:
         st.session_state.success_message = None
     if 'translator' not in st.session_state:
-        st.session_state.translator = Translator()
+        if GOOGLETRANS_AVAILABLE and Translator is not None:
+            try:
+                st.session_state.translator = Translator()
+            except Exception as e:
+                logger.warning(f"Failed to initialize Translator: {e}")
+                st.session_state.translator = None
+        else:
+            st.session_state.translator = None
     if 'language' not in st.session_state:
         st.session_state.language = "English"
     # Initialize TTS file state
