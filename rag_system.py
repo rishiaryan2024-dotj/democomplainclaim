@@ -21,7 +21,12 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from functools import wraps
 import sqlite3
-import psutil
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except Exception:
+    psutil = None
+    PSUTIL_AVAILABLE = False
 # Third-party imports
 import numpy as np
 import pandas as pd
@@ -658,6 +663,12 @@ class MemoryMonitor:
     @staticmethod
     def get_memory_usage():
         """Get current memory usage as a fraction of total memory"""
+        if not PSUTIL_AVAILABLE or psutil is None:
+            # psutil not available on the deployment environment (e.g., Streamlit cloud)
+            # Return a conservative low usage value and log a debug message.
+            logger.debug("psutil not available; returning 0 memory usage fraction")
+            return 0.0
+
         process = psutil.Process(os.getpid())
         return process.memory_info().rss / psutil.virtual_memory().total
 
@@ -2966,7 +2977,7 @@ def show_main_ui(user_info):
             last_message = st.session_state.messages[-1]
             if "relevant_chunks" in last_message and last_message["relevant_chunks"]:
                 st.markdown("### 📑 Sources")
-                for chunk in last_message["relevant_chunks"][:2]:  # Show only top 2
+                for s_idx, chunk in enumerate(last_message["relevant_chunks"][:2]):  # Show only top 2
                     with st.expander(f"{chunk['filename'][:30]}... ({chunk['category']})"):
                         st.caption(f"Type: {chunk.get('content_type', 'text')}")
                         # Show relevance score
@@ -2980,18 +2991,20 @@ def show_main_ui(user_info):
                             col1, col2 = st.columns(2)
                             with col1:
                                 # Quick look button
-                                if st.button("👁️ Quick Look", key=f"quicklook_{chunk['chunk_index']}_{chunk['doc_id']}_{hash(chunk['filename'] + str(chunk['text'][:50]))}"):
+                                quick_key = f"sidebar_quick_{len(st.session_state.messages)-1}_{s_idx}_{chunk.get('chunk_index','0')}_{abs(hash(chunk['filename'] + str(chunk['text'][:50])))}"
+                                if st.button("👁️ Quick Look", key=quick_key):
                                     with open(doc_path, 'rb') as f:
                                         st.download_button(
                                             label="📥 Download",
                                             data=f,
                                             file_name=chunk['filename'],
                                             mime="application/octet-stream",
-                                            key=f"download_{chunk['chunk_index']}_{hash(chunk['filename'] + str(chunk['text'][:50]))}"
+                                            key=f"sidebar_download_{len(st.session_state.messages)-1}_{s_idx}_{chunk.get('chunk_index','0')}_{abs(hash(chunk['filename'] + str(chunk['text'][:50])))}"
                                         )
                             with col2:
                                 # Download button
-                                if st.button("📥 Download", key=f"dl_{chunk['chunk_index']}_{chunk['doc_id']}_{hash(chunk['filename'] + str(chunk['text'][:50]))}"):
+                                dl_key = f"sidebar_dl_{len(st.session_state.messages)-1}_{s_idx}_{chunk.get('chunk_index','0')}_{abs(hash(chunk['filename'] + str(chunk['text'][:50])))}"
+                                if st.button("📥 Download", key=dl_key):
                                     with open(doc_path, 'rb') as f:
                                         st.download_button(
                                             label="Download File",
