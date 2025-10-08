@@ -1,7 +1,6 @@
 # Core & Data
 numpy
 pandas
-psutil
 tqdm
 
 # Web Framework & Plotting
