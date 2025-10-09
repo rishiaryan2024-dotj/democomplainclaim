@@ -17,17 +17,17 @@ class EC2Config:
     # Cache Configuration
     cache_expiry_days: int = int(os.getenv("CACHE_EXPIRY_DAYS", "7"))
     
-    # Data Paths
+    # Data Paths - Using ec2-user paths
     data_paths: List[str] = field(default_factory=lambda: [
-        "/home/ubuntu/data/Extracted_Files",
-        "/home/ubuntu/data/Air_purge_Reference_materials",
-        "/home/ubuntu/data/Air_Purge_LG_Claim"
+        "/home/ec2-user/data/Extracted_Files",
+        "/home/ec2-user/data/Air_purge_Reference_materials",
+        "/home/ec2-user/data/Air_Purge_LG_Claim"
     ])
     
     # Model Configuration - REMOTE OLLAMA VIA NGROK
     text_model: str = os.getenv("TEXT_MODEL", "nomic-embed-text")
     llm_model: str = os.getenv("LLM_MODEL", "gpt-oss:20b")
-    ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", "https://tenantlike-nontyrannically-karla.ngrok-free.dev")
+    ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", "https://your-ngrok-url.ngrok.io")
     
     # Security
     session_expiry_days: int = int(os.getenv("SESSION_EXPIRY_DAYS", "7"))
