@@ -27,7 +27,7 @@ class EC2Config:
     # Model Configuration - REMOTE OLLAMA VIA NGROK
     text_model: str = os.getenv("TEXT_MODEL", "nomic-embed-text")
     llm_model: str = os.getenv("LLM_MODEL", "gpt-oss:20b")
-    ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", "https://your-ngrok-url.ngrok.io")
+    ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", "https://tenantlike-nontyrannically-karla.ngrok-free.dev")
     
     # Security
     session_expiry_days: int = int(os.getenv("SESSION_EXPIRY_DAYS", "7"))
