@@ -196,10 +196,11 @@ class Config:
     cache_expiry_days: int = int(os.getenv("CACHE_EXPIRY_DAYS", "7"))
     # Data Paths
     # Data Paths - Updated to your specified paths
+    # Data Paths - Updated to use relative paths
     data_paths: List[str] = field(default_factory=lambda: [
-        r"C:\Users\PCZ2109-001\Downloads\Extracted_Files",
-        r"C:\Users\PCZ2109-001\Downloads\Air purge_Reference materials to use when handling complaints",
-        r"C:\Users\PCZ2109-001\Downloads\Air Purge LG_Claim\Air Purge LG_Claim"
+        "./data/Extracted_Files",
+        "./data/Air_purge_Reference_materials",
+        "./data/Air_Purge_LG_Claim"
     ])
     # Model Configuration
     text_model: str = os.getenv("TEXT_MODEL", "nomic-embed-text")  #nomic-embed-text
@@ -3807,3 +3808,4 @@ for key in st.session_state:
 
 if __name__ == "__main__":
     main()
+
