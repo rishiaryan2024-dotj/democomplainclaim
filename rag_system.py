@@ -195,12 +195,11 @@ class Config:
     # Cache Configuration
     cache_expiry_days: int = int(os.getenv("CACHE_EXPIRY_DAYS", "7"))
     # Data Paths
-    # Data Paths - Updated to your specified paths
-    # Data Paths - Updated to use relative paths
+    # Data Paths - Using environment variables with fallbacks
     data_paths: List[str] = field(default_factory=lambda: [
-        "./data/Extracted_Files",
-        "./data/Air_purge_Reference_materials",
-        "./data/Air_Purge_LG_Claim"
+        os.getenv("DATA_PATH_1", "./data/Extracted_Files"),
+        os.getenv("DATA_PATH_2", "./data/Air_purge_Reference_materials"),
+        os.getenv("DATA_PATH_3", "./data/Air_Purge_LG_Claim")
     ])
     # Model Configuration
     text_model: str = os.getenv("TEXT_MODEL", "nomic-embed-text")  #nomic-embed-text
@@ -3808,4 +3807,5 @@ for key in st.session_state:
 
 if __name__ == "__main__":
     main()
+
 
