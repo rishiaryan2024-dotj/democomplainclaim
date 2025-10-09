@@ -1,20 +1,27 @@
-# Core & Data
+streamlit
 numpy
 pandas
-tqdm
-
-# Web Framework & Plotting
-streamlit
-plotly
-
-# AI & Machine Learning
+bcrypt
 faiss-cpu
-ollama
+ollama == 0.12.3
+plotly
+Pillow
 groq
 langchain
 langgraph
-Pillow
-googletrans==4.0.0-rc1
-
-# Security
-bcrypt
+tqdm
+googletrans == 4.0.2
+unstructured
+pdf2image
+pytesseract
+docx2txt
+markdown
+pypdf
+faster-whisper
+gTTS
+psutil
+# Notes:
+# - faiss: use faiss-cpu on Windows or the appropriate build for your environment. If deploying to Streamlit Cloud,
+#   faiss may not be available; consider using an alternative vector store or building the index locally and uploading it.
+# - ollama and groq are external services; ensure their CLIs/SDKs are available and API keys set in the environment.
+# - faster-whisper and pytesseract may require system-level dependencies (FFmpeg, Tesseract OCR).
