@@ -3,7 +3,7 @@ numpy
 pandas
 bcrypt
 faiss-cpu
-ollama == 0.12.3
+ollama 
 plotly
 Pillow
 groq
