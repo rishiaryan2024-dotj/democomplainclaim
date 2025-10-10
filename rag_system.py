@@ -1,6 +1,18 @@
 # ===== IMPORTS =====
+# At the top of rag_system.py
 import os
 import sys
+
+# Check if we're running on EC2 or locally
+if os.path.exists("/home/ec2-user"):
+    from config_ec2 import EC2Config as Config
+    USE_LOCAL_OLLAMA = False
+else:
+    from config_local import LocalConfig as Config
+    USE_LOCAL_OLLAMA = True
+
+# Initialize configuration
+config = Config()
 import re
 import json
 import time
@@ -3811,4 +3823,5 @@ for key in st.session_state:
 
 if __name__ == "__main__":
     main()
+
 
