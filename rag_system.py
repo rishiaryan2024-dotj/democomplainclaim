@@ -14,18 +14,6 @@ import queue
 import asyncio
 import shutil
 import tempfile
-
-
-# Check if we're running on EC2 or locally
-if os.path.exists("/home/ubuntu") or os.path.exists("/home/ec2-user"):
-    from config_ec2 import EC2Config as Config
-    USE_LOCAL_OLLAMA = False
-else:
-    from config_local import LocalConfig as Config
-    USE_LOCAL_OLLAMA = True
-
-# Initialize configuration
-config = Config()
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union, Callable
@@ -207,11 +195,11 @@ class Config:
     # Cache Configuration
     cache_expiry_days: int = int(os.getenv("CACHE_EXPIRY_DAYS", "7"))
     # Data Paths
-    # Data Paths - Using environment variables with fallbacks
+    # Data Paths - Updated to your specified paths
     data_paths: List[str] = field(default_factory=lambda: [
-        os.getenv("DATA_PATH_1", "./data/Extracted_Files"),
-        os.getenv("DATA_PATH_2", "./data/Air_purge_Reference_materials"),
-        os.getenv("DATA_PATH_3", "./data/Air_Purge_LG_Claim")
+        r"C:\Users\PCZ2109-001\Downloads\Extracted_Files",
+        r"C:\Users\PCZ2109-001\Downloads\Air purge_Reference materials to use when handling complaints",
+        r"C:\Users\PCZ2109-001\Downloads\Air Purge LG_Claim\Air Purge LG_Claim"
     ])
     # Model Configuration
     text_model: str = os.getenv("TEXT_MODEL", "nomic-embed-text")  #nomic-embed-text
@@ -1671,11 +1659,7 @@ class MultiModalEmbeddingGenerator:
             'table_summaries_generated': 0,
             'errors': 0
         }
-        
-        # Configure Ollama client for remote connection
-        import ollama
-        self.ollama_client = ollama.Client(host=config.ollama_base_url)
-        logger.info(f"Using Ollama at {config.ollama_base_url}")
+
     def generate_text_embedding(self, text: str) -> np.ndarray:
         """Generate embedding for text using Ollama"""
         if not text.strip():
@@ -2201,66 +2185,68 @@ class EnhancedRAGSystem:
             state["error"] = str(e)
             return state
 
-def _generate_response(self, query: str, relevant_chunks: List[Dict[str, Any]],
-                     conversation_history: Optional[List[Dict[str, str]]] = None) -> str:
-    """Generate a response using remote Ollama with conversation history"""
-    # Prepare context from relevant chunks
-    context = "RELEVANT INFORMATION:\n"
-    for chunk in relevant_chunks:
-        content_type = chunk.get("content_type", "text")
-        if content_type == "table":
-            context += f"From {chunk['filename']} (Category: {chunk['category']}, Table):\n"
-            if "summary" in chunk:
-                context += f"Summary: {chunk['summary']}\n"
-            context += f"Table: {chunk['text']}\n"
-        else:
-            context += f"From {chunk['filename']} (Category: {chunk['category']}):\n"
-            context += f"{chunk['text']}\n"
+    def _generate_response(self, query: str, relevant_chunks: List[Dict[str, Any]],
+                         conversation_history: Optional[List[Dict[str, str]]] = None) -> str:
+        """Generate a response using Ollama with conversation history"""
+        # Prepare context from relevant chunks
+        context = "RELEVANT INFORMATION:\n"
+        for chunk in relevant_chunks:
+            content_type = chunk.get("content_type", "text")
+            if content_type == "table":
+                # For tables, include both summary and raw table
+                context += f"From {chunk['filename']} (Category: {chunk['category']}, Table):\n"
+                if "summary" in chunk:
+                    context += f"Summary: {chunk['summary']}\n"
+                context += f"Table: {chunk['text']}\n"
+            else:
+                context += f"From {chunk['filename']} (Category: {chunk['category']}):\n"
+                context += f"{chunk['text']}\n"
 
-    # Add conversation history if available
-    history_text = ""
-    if conversation_history:
-        history_text = "CONVERSATION HISTORY:\n"
-        for turn in conversation_history[-config.max_conversation_turns:]:
-            history_text += f"User: {turn['query']}\n"
-            history_text += f"Assistant: {turn['response']}\n"
+        # Add conversation history if available
+        history_text = ""
+        if conversation_history:
+            history_text = "CONVERSATION HISTORY:\n"
+            for turn in conversation_history[-config.max_conversation_turns:]:
+                history_text += f"User: {turn['query']}\n"
+                history_text += f"Assistant: {turn['response']}\n"
 
-    # Create prompt for LLM
-    prompt = f"""
-    You are an expert technician specializing in Nakakita air purge level gauge systems. You are helpful, knowledgeable, and conversational.
+        # Create prompt for LLM
+        prompt = f"""
+        You are an expert technician specializing in Nakakita air purge level gauge systems. You are helpful, knowledgeable, and conversational.
 
-    {history_text}
+        {history_text}
 
-    CURRENT USER QUERY: {query}
+        CURRENT USER QUERY: {query}
 
-    {context}
+        {context}
 
-    INSTRUCTIONS:
-    1. Answer the user's query in the most detailed way possible based ONLY on the provided information from the data source.
-    2. If the information is insufficient, clearly state what additional information is needed.
-    3. Include specific steps, technical details, and references to the documentation when possible.
-    4. If you don't know the answer based on the provided context, say "I don't have enough information to answer this question."
-    5. Do not make up information or hallucinate.
-    6. Keep your response conversational and engaging.
-    7. Remember the conversation history and use it to provide context-aware responses.
-    8. If the user refers to something mentioned earlier in the conversation, acknowledge it and build upon it.
-    9. DO REMEMBER THE CONTEXT OF THE CONVERSATION.
-    """
+        INSTRUCTIONS:
+        1. Answer the user's query in the most detailed way possible based ONLY on the provided information from the data source.
+        2. If the information is insufficient, clearly state what additional information is needed.
+        3. Include specific steps, technical details, and references to the documentation when possible.
+        4. If you don't know the answer based on the provided context, say "I don't have enough information to answer this question."
+        5. Do not make up information or hallucinate.
+        6. Keep your response conversational and engaging.
+        7. Remember the conversation history and use it to provide context-aware responses.
+        8. If the user refers to something mentioned earlier in the conversation, acknowledge it and build upon it.
+        9. DO REMEMBER THE CONTEXT OF THE CONVERSATION.
+        """
 
-    # Check if Ollama is available
-    if not OLLAMA_AVAILABLE or ollama is None:
-        logger.warning("OLLAMA not available; returning placeholder response")
-        return "LLM backend is not available. Please configure Ollama or another LLM provider."
+        # If Ollama is not available, return a helpful message instead of raising
+        if not OLLAMA_AVAILABLE or ollama is None:
+            logger.warning("OLLAMA not available; returning placeholder response")
+            return "LLM backend is not available in this environment. Please configure Ollama or another LLM provider."
 
-    try:
-        response = self.ollama_client.chat(
-            model=config.llm_model,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return response["message"]["content"]
-    except Exception as e:
-        logger.error(f"Error generating response: {str(e)}")
-        return f"Error generating response: {str(e)}"
+        try:
+            response = ollama.chat(
+                model=config.llm_model,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            return response["message"]["content"]
+        except Exception as e:
+            logger.error(f"Error generating response: {str(e)}")
+            return f"Error generating response: {str(e)}"
+
     def process_query(self, query: str, conversation_history: Optional[List[Dict[str, str]]] = None) -> Dict[str, Any]:
         """Process a user query and return a response"""
         logger.info(f"Processing query: {query}")
@@ -3821,6 +3807,3 @@ for key in st.session_state:
 
 if __name__ == "__main__":
     main()
-
-
-
