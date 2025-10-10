@@ -1659,7 +1659,11 @@ class MultiModalEmbeddingGenerator:
             'table_summaries_generated': 0,
             'errors': 0
         }
-
+        
+        # Configure Ollama client for remote connection
+        import ollama
+        self.ollama_client = ollama.Client(host=config.ollama_base_url)
+        logger.info(f"Using Ollama at {config.ollama_base_url}")
     def generate_text_embedding(self, text: str) -> np.ndarray:
         """Generate embedding for text using Ollama"""
         if not text.strip():
@@ -3807,3 +3811,4 @@ for key in st.session_state:
 
 if __name__ == "__main__":
     main()
+
