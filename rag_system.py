@@ -11,8 +11,6 @@ else:
     from config_local import LocalConfig as Config
     USE_LOCAL_OLLAMA = True
 
-# Initialize configuration
-config = Config()
 import re
 import json
 import time
@@ -3823,5 +3821,6 @@ for key in st.session_state:
 
 if __name__ == "__main__":
     main()
+
 
 
